@@ -11,9 +11,7 @@ A Spin trigger plugin that enables WebAssembly components to serve as Model Cont
 
 ## Quick Start
 
-See the [Getting Started Guide](docs/getting-started.md) for detailed installation and usage instructions.
-
-## Installation
+### 1. Install the Plugin and Template
 
 From source:
 
@@ -23,87 +21,113 @@ cd spin-trigger-mcp
 make
 ```
 
-This will build and install both the trigger plugin and the MCP Rust template.
+This will:
+- Build and install the `trigger-mcp` plugin
+- Install the `mcp-rust` template for creating new MCP components
 
-## Usage
+Verify installation:
+```bash
+spin plugins list
+# Should show: trigger-mcp
 
-### 1. Create an MCP Component
-
-Create a new Spin application with an MCP trigger:
-
-```toml
-# spin.toml
-spin_manifest_version = 2
-
-[application]
-name = "my-mcp-server"
-version = "0.1.0"
-
-[[trigger.mcp]]
-component = "weather-tool"
-route = "/weather"
-
-[component.weather-tool]
-source = "target/wasm32-wasip1/release/my_mcp_server.wasm"
+spin templates list
+# Should show: mcp-rust (MCP server component)
 ```
 
-### 2. Implement the MCP Interface
+### 2. Create a New MCP Tool
 
-Your component must implement the MCP interface defined in `spin-mcp.wit`:
+Use the template to create a new MCP server:
+
+```bash
+spin new -t mcp-rust my-mcp-server
+cd my-mcp-server
+```
+
+This creates a project structure with:
+- `spin.toml` - Spin application manifest with MCP trigger configuration
+- `src/lib.rs` - Rust code with the MCP component implementation
+- `Cargo.toml` - Rust dependencies including the spin-mcp-sdk
+
+### 3. Implement Your MCP Tools
+
+Your component uses the `mcp_component` macro to implement the MCP interface:
 
 ```rust
-use spin_mcp_sdk::*;
+use spin_mcp_sdk::{mcp_component, Request, Response, Tool, ToolResult, Error};
+use serde_json::json;
 
-struct Component;
-
-impl Guest for Component {
-    fn handle_request(request: Request) -> Response {
-        match request {
-            Request::ToolsList => {
-                Response::ToolsList(vec![
-                    Tool {
-                        name: "get_weather".to_string(),
-                        description: "Get weather for a location".to_string(),
-                        input_schema: serde_json::json!({
-                            "type": "object",
-                            "properties": {
-                                "location": {
-                                    "type": "string",
-                                    "description": "City name"
-                                }
-                            },
-                            "required": ["location"]
-                        }).to_string(),
-                    }
-                ])
-            }
-            Request::ToolsCall(params) => {
-                // Handle tool execution
-                Response::ToolsCall(ToolResult::Json(
-                    serde_json::json!({
-                        "temperature": "72°F",
-                        "conditions": "Sunny"
-                    }).to_string()
-                ))
-            }
-            _ => Response::Error(Error {
-                code: -32601,
-                message: "Method not found".to_string(),
-                data: None,
-            })
+#[mcp_component]
+fn handle_request(request: Request) -> Response {
+    match request {
+        Request::ToolsList => {
+            Response::ToolsList(vec![
+                Tool {
+                    name: "example_tool".to_string(),
+                    description: "An example tool that echoes input".to_string(),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "message": {
+                                "type": "string",
+                                "description": "Message to echo"
+                            }
+                        },
+                        "required": ["message"]
+                    }).to_string(),
+                }
+            ])
         }
+        
+        Request::ToolsCall(params) => {
+            match params.name.as_str() {
+                "example_tool" => {
+                    // Parse arguments
+                    let args: serde_json::Value = serde_json::from_str(&params.arguments)
+                        .unwrap_or(json!({}));
+                    
+                    let message = args.get("message")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("No message provided");
+                    
+                    Response::ToolsCall(ToolResult::Text(
+                        format!("Echo: {}", message)
+                    ))
+                }
+                _ => Response::ToolsCall(ToolResult::Error(Error {
+                    code: -32602,
+                    message: format!("Unknown tool: {}", params.name),
+                    data: None,
+                }))
+            }
+        }
+        
+        Request::ResourcesList => {
+            Response::ResourcesList(vec![])
+        }
+        
+        Request::PromptsList => {
+            Response::PromptsList(vec![])
+        }
+        
+        Request::Ping => Response::Pong,
+        
+        _ => Response::Error(Error {
+            code: -32601,
+            message: "Method not found".to_string(),
+            data: None,
+        })
     }
 }
 ```
 
-### 3. Run Your MCP Server
+### 4. Build and Run Your MCP Server
 
 ```bash
 spin build
 spin up
 ```
 
-Your MCP server is now running and can be accessed by MCP clients.
+Your MCP server is now running at `http://localhost:3000/mcp` and can be accessed by MCP clients.
 
 ## MCP Client Configuration
 
@@ -114,9 +138,9 @@ Add to your Claude Desktop config:
 ```json
 {
   "mcpServers": {
-    "weather": {
+    "my-mcp-server": {
       "command": "curl",
-      "args": ["-X", "POST", "http://localhost:3000/weather", "-H", "Content-Type: application/json", "-d", "@-"]
+      "args": ["-X", "POST", "http://localhost:3000/mcp", "-H", "Content-Type: application/json", "-d", "@-"]
     }
   }
 }
@@ -126,19 +150,19 @@ Add to your Claude Desktop config:
 
 ```bash
 # List available tools
-curl -X POST http://localhost:3000/weather \
+curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
 
 # Call a tool
-curl -X POST http://localhost:3000/weather \
+curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
     "method": "tools/call",
     "params": {
-      "name": "get_weather",
-      "arguments": {"location": "San Francisco"}
+      "name": "example_tool",
+      "arguments": {"message": "Hello, MCP!"}
     },
     "id": 2
   }'
@@ -156,7 +180,79 @@ curl -X POST http://localhost:3000/weather \
 See the `examples/` directory for complete MCP server implementations:
 
 - `demo-mcp/` - Simple echo tool demonstrating basic MCP functionality
-- `mcp-weather-tool/` - Weather information tool (work in progress)
+
+To run the demo example:
+```bash
+cd examples/demo-mcp
+spin build
+spin up
+```
+
+Then test it:
+```bash
+# List tools
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
+
+# Call the echo tool
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "example_tool",
+      "arguments": {
+        "message": "Hello, MCP!"
+      }
+    },
+    "id": 2
+  }'
+```
+
+## Creating Custom Tools
+
+To add more tools to your MCP server, modify the `src/lib.rs` file:
+
+1. Add your tool to the `ToolsList` response
+2. Handle the tool call in the `ToolsCall` match
+3. Return appropriate responses using `ToolResult::Text` or `ToolResult::Error`
+
+Example of adding a calculator tool:
+
+```rust
+Request::ToolsList => {
+    Response::ToolsList(vec![
+        Tool {
+            name: "add".to_string(),
+            description: "Add two numbers".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "a": { "type": "number" },
+                    "b": { "type": "number" }
+                },
+                "required": ["a", "b"]
+            }).to_string(),
+        }
+    ])
+}
+
+Request::ToolsCall(params) => {
+    match params.name.as_str() {
+        "add" => {
+            let args: serde_json::Value = serde_json::from_str(&params.arguments)?;
+            let a = args["a"].as_f64().unwrap_or(0.0);
+            let b = args["b"].as_f64().unwrap_or(0.0);
+            Response::ToolsCall(ToolResult::Text(
+                format!("{} + {} = {}", a, b, a + b)
+            ))
+        }
+        _ => // ... handle unknown tool
+    }
+}
+```
 
 ## Development
 
@@ -164,7 +260,7 @@ See the `examples/` directory for complete MCP server implementations:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/spin-trigger-mcp
+git clone https://github.com/fastertools/spin-trigger-mcp
 cd spin-trigger-mcp
 
 # Build the plugin
