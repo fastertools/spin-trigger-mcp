@@ -1,7 +1,7 @@
 # Makefile to build and run MCP plugin for Spin framework.
 
 .PHONY: all
-all: build_plugin install_plugin
+all: build_plugin install_plugin install_template
 
 .PHONY: lint
 lint:
@@ -28,6 +28,11 @@ install_plugin:
 	@echo "Installing MCP Plugin in Spin..."
 	spin plugins update && spin plugins upgrade pluginify -y
 	spin pluginify --install
+
+.PHONY: install_template
+install_template:
+	@echo "Installing MCP Rust template..."
+	spin templates install --dir templates/templates/mcp-rust --update
 	
 .PHONY: clean
 clean:
