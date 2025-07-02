@@ -1,0 +1,5 @@
+package demo_mcp:component;
+
+world demo_mcp-world {
+    include spin:mcp-trigger/spin-mcp;
+}

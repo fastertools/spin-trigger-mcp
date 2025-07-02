@@ -1,0 +1,16 @@
+[package]
+name = "spin-mcp-macro"
+version = "0.1.0"
+edition = "2021"
+authors = ["Spin MCP Plugin Authors"]
+license = "Apache-2.0"
+description = "Procedural macros for Spin MCP SDK"
+
+[lib]
+proc-macro = true
+doctest = false
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }

@@ -1,0 +1,8 @@
+manifest_version = "1"
+id = "mcp-rust"
+description = "MCP server component written in Rust"
+tags = ["rust", "mcp"]
+
+[parameters]
+project-description = { type = "string", prompt = "Description", default = "An MCP server component" }
+route = { type = "string", prompt = "HTTP route path for the MCP server (default: /mcp)", default = "/mcp" }

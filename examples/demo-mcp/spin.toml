@@ -1,22 +1,23 @@
 spin_manifest_version = 2
 
 [application]
-name = "{{project-name}}"
+name = "demo-mcp"
 version = "0.1.0"
-description = "{{description}}"
+authors = ["bowlofarugula <bowlofarugula@gmail.com>"]
+description = "An MCP server component"
 
 [variables]
 # Add any configuration variables here
 # api_key = { required = true, secret = true }
 
 [[trigger.mcp]]
-component = "{{project-name | kebab_case}}"
-route = "/{{name | kebab_case}}"
+component = "demo-mcp"
+route = "/mcp"
 
-[component.{{project-name | kebab_case}}]
-source = "target/wasm32-wasip1/release/{{project-name | snake_case}}.wasm"
+[component.demo-mcp]
+source = "target/wasm32-wasip1/release/demo_mcp.wasm"
 # Uncomment to allow outbound HTTP requests
 # allowed_outbound_hosts = ["https://api.example.com"]
 
-[component.{{project-name | kebab_case}}.build]
+[component.demo-mcp.build]
 command = "cargo build --target wasm32-wasip1 --release"

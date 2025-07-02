@@ -9,18 +9,21 @@ A Spin trigger plugin that enables WebAssembly components to serve as Model Cont
 - Easy deployment of MCP servers as Spin applications
 - Compatible with Claude Desktop and other MCP clients
 
+## Quick Start
+
+See the [Getting Started Guide](docs/getting-started.md) for detailed installation and usage instructions.
+
 ## Installation
 
-```bash
-spin plugins install --url https://github.com/yourusername/spin-trigger-mcp/releases/download/v0.1.0/trigger-mcp.json
-```
-
-Or install from source:
+From source:
 
 ```bash
-cargo build --release
-spin pluginify --install
+git clone https://github.com/fastertools/spin-trigger-mcp.git
+cd spin-trigger-mcp
+make
 ```
+
+This will build and install both the trigger plugin and the MCP Rust template.
 
 ## Usage
 
@@ -152,8 +155,8 @@ curl -X POST http://localhost:3000/weather \
 
 See the `examples/` directory for complete MCP server implementations:
 
-- `mcp-weather-tool/` - Weather information tool
-- More examples coming soon!
+- `demo-mcp/` - Simple echo tool demonstrating basic MCP functionality
+- `mcp-weather-tool/` - Weather information tool (work in progress)
 
 ## Development
 

@@ -1,8 +1,0 @@
-manifest_version = 2
-id = "mcp-rust"
-description = "MCP server component written in Rust"
-tags = ["rust", "mcp"]
-
-[parameters]
-name = { description = "Name of the MCP component", default = "mcp-component" }
-description = { description = "Description of the MCP server", default = "An MCP server component" }

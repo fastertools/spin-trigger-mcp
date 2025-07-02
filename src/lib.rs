@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
+use base64::Engine;
 use clap::Args;
-use http::{Request, Response, StatusCode};
+use http::{Request as HttpRequest, Response as HttpResponse, StatusCode};
 use http_body_util::{BodyExt, Full};
 use hyper::body::{Bytes, Incoming};
 use hyper::server::conn::http1;
@@ -51,8 +52,8 @@ impl<F: RuntimeFactors> Trigger<F> for McpTrigger {
         let configs = app.trigger_configs::<ComponentConfig>(trigger_type)?;
         
         for (component_id, config) in configs {
-            info!("Registering MCP route {} -> component {}", config.route, component_id);
-            component_routes.insert(config.route.clone(), component_id.to_string());
+            info!("Registering MCP route {} -> component {} (id: {})", config.route, config.component, component_id);
+            component_routes.insert(config.route.clone(), config.component.clone());
         }
 
         if component_routes.is_empty() {
@@ -86,7 +87,7 @@ pub struct CliArgs {
 }
 
 /// Trigger-level metadata (optional)
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TriggerMetadata {
     /// Default address to listen on
@@ -94,8 +95,16 @@ pub struct TriggerMetadata {
     pub address: SocketAddr,
 }
 
+impl Default for TriggerMetadata {
+    fn default() -> Self {
+        Self {
+            address: default_address(),
+        }
+    }
+}
+
 fn default_address() -> SocketAddr {
-    "127.0.0.1:9000".parse().unwrap()
+    "127.0.0.1:3000".parse().unwrap()
 }
 
 /// Per-component configuration
@@ -151,8 +160,8 @@ impl<F: RuntimeFactors> McpServer<F> {
     async fn handle_http_request(
         self: Arc<Self>,
         _client_addr: SocketAddr,
-        mut req: Request<Incoming>,
-    ) -> Result<Response<Full<Bytes>>> {
+        mut req: HttpRequest<Incoming>,
+    ) -> Result<HttpResponse<Full<Bytes>>> {
         let path = req.uri().path();
         
         // Find component for this route
@@ -164,7 +173,7 @@ impl<F: RuntimeFactors> McpServer<F> {
 
         // Only accept POST requests
         if req.method() != http::Method::POST {
-            return Ok(Response::builder()
+            return Ok(HttpResponse::builder()
                 .status(StatusCode::METHOD_NOT_ALLOWED)
                 .body(Full::new(Bytes::new()))?);
         }
@@ -184,7 +193,7 @@ impl<F: RuntimeFactors> McpServer<F> {
         // Serialize response
         let response_bytes = serde_json::to_vec(&response)?;
         
-        Ok(Response::builder()
+        Ok(HttpResponse::builder()
             .status(StatusCode::OK)
             .header("content-type", "application/json")
             .body(Full::new(response_bytes.into()))?)

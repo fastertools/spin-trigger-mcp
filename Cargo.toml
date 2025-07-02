@@ -2,42 +2,37 @@
 name = "trigger-mcp"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
-license = "Apache-2.0"
-description = "A Spin trigger plugin for Model Context Protocol (MCP) servers"
-repository = "https://github.com/yourusername/spin-trigger-mcp"
+rust-version = "1.81"
 
 [dependencies]
-anyhow = "1.0"
+anyhow = "1.0.68"
 base64 = "0.22"
-clap = { version = "4.5", features = ["derive", "env"] }
-futures = "0.3"
+clap = { version = "3.1.15", features = ["derive", "env"] }
+futures = "0.3.25"
 http = "1"
 http-body-util = "0.1"
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0"
-spin-app = { path = "../crates/app" }
-spin-core = { path = "../crates/core" }
-spin-factor-variables = { path = "../crates/factor-variables" }
-spin-factors = { path = "../crates/factors" }
-spin-runtime-factors = { path = "../crates/runtime-factors" }
-spin-telemetry = { path = "../crates/telemetry" }
-spin-trigger = { path = "../crates/trigger" }
-tokio = { version = "1.40", features = ["macros", "rt", "net"] }
-tracing = "0.1"
-wasmtime = "34.0"
-wasmtime-wasi = "34.0"
-
-[build-dependencies]
-spin-build = { path = "../crates/build" }
-
-# [dev-dependencies]
-# spin-testing = { path = "../crates/testing" }
-
-[[bin]]
-name = "trigger-mcp"
-path = "src/main.rs"
+spin-app = { git = "https://github.com/spinframework/spin", tag = "v3.3.1" }
+spin-core = { git = "https://github.com/spinframework/spin", tag = "v3.3.1" }
+spin-expressions = { git = "https://github.com/spinframework/spin", tag = "v3.3.1" }
+spin-factors = { git = "https://github.com/spinframework/spin", tag = "v3.3.1" }
+spin-runtime-factors = { git = "https://github.com/spinframework/spin", tag = "v3.3.1" }
+spin-trigger = { git = "https://github.com/spinframework/spin", tag = "v3.3.1" }
+spin-telemetry = { git = "https://github.com/spinframework/spin", tag = "v3.3.1" }
+spin-factor-variables = { git = "https://github.com/spinframework/spin", tag = "v3.3.1" }
+tokio = { version = "1", features = ["full"] }
+tracing = { version = "0.1.41", features = ["log"] }
+wasmtime = { version = "33.0.0" }
 
 [workspace]
+members = ["sdk", "sdk/macro"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+
+[workspace.dependencies]
+wit-bindgen = "0.16.0"
