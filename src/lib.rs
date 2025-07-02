@@ -190,8 +190,15 @@ impl<F: RuntimeFactors> McpServer<F> {
             .handle_mcp_request(component_id, json_rpc_request)
             .await?;
 
+        // For notifications (no id), return empty response
+        if response.is_none() {
+            return Ok(HttpResponse::builder()
+                .status(StatusCode::NO_CONTENT)
+                .body(Full::new(Bytes::new()))?);
+        }
+
         // Serialize response
-        let response_bytes = serde_json::to_vec(&response)?;
+        let response_bytes = serde_json::to_vec(&response.unwrap())?;
         
         Ok(HttpResponse::builder()
             .status(StatusCode::OK)
@@ -203,7 +210,7 @@ impl<F: RuntimeFactors> McpServer<F> {
         &self,
         component_id: &str,
         json_rpc_request: JsonRpcRequest,
-    ) -> Result<JsonRpcResponse> {
+    ) -> Result<Option<JsonRpcResponse>> {
         // Convert JSON-RPC method to MCP request type
         let mcp_request = match json_rpc_request.method.as_str() {
             "tools/list" => mcp::Request::ToolsList,
@@ -228,13 +235,48 @@ impl<F: RuntimeFactors> McpServer<F> {
                 })
             }
             "ping" => mcp::Request::Ping,
+            "initialize" => {
+                // Handle MCP initialization handshake
+                info!("Handling initialize request");
+                // Initialize requests must have an ID
+                if let Some(id) = json_rpc_request.id {
+                    return Ok(Some(JsonRpcResponse::success(
+                        id,
+                        serde_json::json!({
+                            "protocolVersion": "2025-03-26",
+                            "capabilities": {
+                                "tools": {},
+                                "resources": {},
+                                "prompts": {}
+                            },
+                            "serverInfo": {
+                                "name": "spin-mcp-server",
+                                "version": "0.1.0"
+                            }
+                        })
+                    )));
+                } else {
+                    return Ok(None);
+                }
+            }
+            "notifications/initialized" => {
+                // Client acknowledging initialization - this is a notification
+                info!("Client initialized notification received");
+                return Ok(None); // Notifications don't get responses
+            }
             _ => {
-                return Ok(JsonRpcResponse::error(
-                    json_rpc_request.id,
-                    -32601,
-                    "Method not found",
-                    None,
-                ));
+                warn!("Unknown method requested: {}", json_rpc_request.method);
+                if let Some(id) = json_rpc_request.id {
+                    return Ok(Some(JsonRpcResponse::error(
+                        id,
+                        -32601,
+                        &format!("Method not found: {}", json_rpc_request.method),
+                        None,
+                    )));
+                } else {
+                    // Unknown notification - just ignore
+                    return Ok(None);
+                }
             }
         };
 
@@ -248,93 +290,121 @@ impl<F: RuntimeFactors> McpServer<F> {
             .call_handle_request(&mut store, &mcp_request)
             .await?;
 
-        // Convert MCP response to JSON-RPC response
-        let json_rpc_response = match mcp_response {
-            mcp::Response::ToolsList(tools) => {
-                let tools_json: Vec<_> = tools.into_iter().map(|t| {
-                    serde_json::json!({
-                        "name": t.name,
-                        "description": t.description,
-                        "inputSchema": serde_json::from_str::<serde_json::Value>(&t.input_schema).unwrap_or(serde_json::json!({})),
-                    })
-                }).collect();
-                JsonRpcResponse::success(json_rpc_request.id, serde_json::json!({ "tools": tools_json }))
-            }
-            mcp::Response::ToolsCall(result) => {
-                match result {
-                    mcp::ToolResult::Text(text) => {
-                        JsonRpcResponse::success(json_rpc_request.id, serde_json::json!({ "content": text }))
-                    }
-                    mcp::ToolResult::Json(json_str) => {
-                        let json_value: serde_json::Value = serde_json::from_str(&json_str)?;
-                        JsonRpcResponse::success(json_rpc_request.id, serde_json::json!({ "content": json_value }))
-                    }
-                    mcp::ToolResult::Binary(bytes) => {
-                        use base64::Engine;
-                        let base64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-                        JsonRpcResponse::success(json_rpc_request.id, serde_json::json!({ "content": base64 }))
-                    }
-                    mcp::ToolResult::Error(err) => {
-                        JsonRpcResponse::error(json_rpc_request.id, err.code, &err.message, err.data)
+        // All component responses need an ID
+        if let Some(id) = json_rpc_request.id {
+            let json_rpc_response = match mcp_response {
+                mcp::Response::ToolsList(tools) => {
+                    let tools_json: Vec<_> = tools.into_iter().map(|t| {
+                        serde_json::json!({
+                            "name": t.name,
+                            "description": t.description,
+                            "inputSchema": serde_json::from_str::<serde_json::Value>(&t.input_schema).unwrap_or(serde_json::json!({})),
+                        })
+                    }).collect();
+                    JsonRpcResponse::success(id.clone(), serde_json::json!({ "tools": tools_json }))
+                }
+                mcp::Response::ToolsCall(result) => {
+                    match result {
+                        mcp::ToolResult::Text(text) => {
+                            JsonRpcResponse::success(id.clone(), serde_json::json!({ 
+                                "content": [{
+                                    "type": "text",
+                                    "text": text
+                                }]
+                            }))
+                        }
+                        mcp::ToolResult::Json(json_str) => {
+                            let json_value: serde_json::Value = serde_json::from_str(&json_str)?;
+                            JsonRpcResponse::success(id.clone(), serde_json::json!({ 
+                                "content": [{
+                                    "type": "text",
+                                    "text": json_str
+                                }]
+                            }))
+                        }
+                        mcp::ToolResult::Binary(bytes) => {
+                            use base64::Engine;
+                            let base64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                            JsonRpcResponse::success(id.clone(), serde_json::json!({ 
+                                "content": [{
+                                    "type": "image",
+                                    "data": base64,
+                                    "mimeType": "application/octet-stream"
+                                }]
+                            }))
+                        }
+                        mcp::ToolResult::Error(err) => {
+                            // For errors, we return isError: true with content array
+                            JsonRpcResponse::success(id.clone(), serde_json::json!({ 
+                                "content": [{
+                                    "type": "text",
+                                    "text": err.message
+                                }],
+                                "isError": true
+                            }))
+                        }
                     }
                 }
-            }
-            mcp::Response::ResourcesList(resources) => {
-                let resources_json: Vec<_> = resources.into_iter().map(|r| {
-                    serde_json::json!({
-                        "uri": r.uri,
-                        "name": r.name,
-                        "description": r.description,
-                        "mimeType": r.mime_type,
-                    })
-                }).collect();
-                JsonRpcResponse::success(json_rpc_request.id, serde_json::json!({ "resources": resources_json }))
-            }
-            mcp::Response::ResourcesRead(contents) => {
-                JsonRpcResponse::success(json_rpc_request.id, serde_json::json!({
-                    "uri": contents.uri,
-                    "mimeType": contents.mime_type,
-                    "text": contents.text,
-                    "blob": contents.blob.map(|b| base64::engine::general_purpose::STANDARD.encode(&b)),
-                }))
-            }
-            mcp::Response::PromptsList(prompts) => {
-                let prompts_json: Vec<_> = prompts.into_iter().map(|p| {
-                    serde_json::json!({
-                        "name": p.name,
-                        "description": p.description,
-                        "arguments": p.arguments.into_iter().map(|a| {
-                            serde_json::json!({
-                                "name": a.name,
-                                "description": a.description,
-                                "required": a.required,
-                            })
-                        }).collect::<Vec<_>>(),
-                    })
-                }).collect();
-                JsonRpcResponse::success(json_rpc_request.id, serde_json::json!({ "prompts": prompts_json }))
-            }
-            mcp::Response::PromptsGet(messages) => {
-                let messages_json: Vec<_> = messages.into_iter().map(|m| {
-                    serde_json::json!({
-                        "role": m.role,
-                        "content": m.content,
-                    })
-                }).collect();
-                JsonRpcResponse::success(json_rpc_request.id, serde_json::json!({ "messages": messages_json }))
-            }
-            mcp::Response::Pong => {
-                JsonRpcResponse::success(json_rpc_request.id, serde_json::json!("pong"))
-            }
-            mcp::Response::Error(err) => {
-                JsonRpcResponse::error(json_rpc_request.id, err.code, &err.message, err.data)
-            }
-            _ => {
-                JsonRpcResponse::success(json_rpc_request.id, serde_json::json!({}))
-            }
-        };
-
-        Ok(json_rpc_response)
+                mcp::Response::ResourcesList(resources) => {
+                    let resources_json: Vec<_> = resources.into_iter().map(|r| {
+                        serde_json::json!({
+                            "uri": r.uri,
+                            "name": r.name,
+                            "description": r.description,
+                            "mimeType": r.mime_type,
+                        })
+                    }).collect();
+                    JsonRpcResponse::success(id.clone(), serde_json::json!({ "resources": resources_json }))
+                }
+                mcp::Response::ResourcesRead(contents) => {
+                    JsonRpcResponse::success(id.clone(), serde_json::json!({
+                        "uri": contents.uri,
+                        "mimeType": contents.mime_type,
+                        "text": contents.text,
+                        "blob": contents.blob.map(|b| base64::engine::general_purpose::STANDARD.encode(&b)),
+                    }))
+                }
+                mcp::Response::PromptsList(prompts) => {
+                    let prompts_json: Vec<_> = prompts.into_iter().map(|p| {
+                        serde_json::json!({
+                            "name": p.name,
+                            "description": p.description,
+                            "arguments": p.arguments.into_iter().map(|a| {
+                                serde_json::json!({
+                                    "name": a.name,
+                                    "description": a.description,
+                                    "required": a.required,
+                                })
+                            }).collect::<Vec<_>>(),
+                        })
+                    }).collect();
+                    JsonRpcResponse::success(id.clone(), serde_json::json!({ "prompts": prompts_json }))
+                }
+                mcp::Response::PromptsGet(messages) => {
+                    let messages_json: Vec<_> = messages.into_iter().map(|m| {
+                        serde_json::json!({
+                            "role": m.role,
+                            "content": m.content,
+                        })
+                    }).collect();
+                    JsonRpcResponse::success(id.clone(), serde_json::json!({ "messages": messages_json }))
+                }
+                mcp::Response::Pong => {
+                    JsonRpcResponse::success(id.clone(), serde_json::json!("pong"))
+                }
+                mcp::Response::Error(err) => {
+                    JsonRpcResponse::error(id.clone(), err.code, &err.message, err.data)
+                }
+                _ => {
+                    JsonRpcResponse::success(id.clone(), serde_json::json!({}))
+                }
+            };
+            Ok(Some(json_rpc_response))
+        } else {
+            // Component methods should have an ID, this is an error
+            warn!("Component method called without request ID");
+            Ok(None)
+        }
     }
 }
 
@@ -344,7 +414,7 @@ struct JsonRpcRequest {
     jsonrpc: String,
     method: String,
     params: Option<serde_json::Value>,
-    id: serde_json::Value,
+    id: Option<serde_json::Value>,
 }
 
 /// JSON-RPC response structure
