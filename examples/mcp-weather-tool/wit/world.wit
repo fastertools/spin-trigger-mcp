@@ -1,0 +1,5 @@
+package example:weather-tool;
+
+world weather-service {
+    include spin:mcp-trigger/spin-mcp;
+}

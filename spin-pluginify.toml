@@ -1,0 +1,6 @@
+name = "trigger-mcp"
+description = "A Spin trigger plugin for Model Context Protocol (MCP) servers"
+version = "0.1.0"
+spin_compatibility = ">=3.0"
+license = "Apache-2.0"
+package = "./target/release/trigger-mcp"

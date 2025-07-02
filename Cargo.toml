@@ -1,0 +1,43 @@
+[package]
+name = "trigger-mcp"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+license = "Apache-2.0"
+description = "A Spin trigger plugin for Model Context Protocol (MCP) servers"
+repository = "https://github.com/yourusername/spin-trigger-mcp"
+
+[dependencies]
+anyhow = "1.0"
+base64 = "0.22"
+clap = { version = "4.5", features = ["derive", "env"] }
+futures = "0.3"
+http = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["full"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+spin-app = { path = "../crates/app" }
+spin-core = { path = "../crates/core" }
+spin-factor-variables = { path = "../crates/factor-variables" }
+spin-factors = { path = "../crates/factors" }
+spin-runtime-factors = { path = "../crates/runtime-factors" }
+spin-telemetry = { path = "../crates/telemetry" }
+spin-trigger = { path = "../crates/trigger" }
+tokio = { version = "1.40", features = ["macros", "rt", "net"] }
+tracing = "0.1"
+wasmtime = "34.0"
+wasmtime-wasi = "34.0"
+
+[build-dependencies]
+spin-build = { path = "../crates/build" }
+
+# [dev-dependencies]
+# spin-testing = { path = "../crates/testing" }
+
+[[bin]]
+name = "trigger-mcp"
+path = "src/main.rs"
+
+[workspace]
