@@ -32,7 +32,7 @@ install_plugin:
 .PHONY: install_template
 install_template:
 	@echo "Installing MCP Rust template..."
-	spin templates install --dir templates/templates/mcp-rust --update
+	spin templates install --dir templates --update
 	
 .PHONY: clean
 clean:
