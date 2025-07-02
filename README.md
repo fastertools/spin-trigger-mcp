@@ -45,8 +45,28 @@ cd my-mcp-server
 
 This creates a project structure with:
 - `spin.toml` - Spin application manifest with MCP trigger configuration
-- `src/lib.rs` - Rust code with the MCP component implementation
+- `src/lib.rs` - Rust code with the MCP component implementation  
 - `Cargo.toml` - Rust dependencies including the spin-mcp-sdk
+
+The generated `spin.toml` will look like:
+
+```toml
+spin_manifest_version = 2
+
+[application]
+name = "my-mcp-server"
+version = "0.1.0"
+
+[[trigger.mcp]]
+component = "my-mcp-server"
+route = "/mcp"
+
+[component.my-mcp-server]
+source = "target/wasm32-wasip1/release/my_mcp_server.wasm"
+
+[component.my-mcp-server.build]
+command = "cargo build --target wasm32-wasip1 --release"
+```
 
 ### 3. Implement Your MCP Tools
 
@@ -138,9 +158,9 @@ Add to your Claude Desktop config:
 ```json
 {
   "mcpServers": {
-    "my-mcp-server": {
-      "command": "curl",
-      "args": ["-X", "POST", "http://localhost:3000/mcp", "-H", "Content-Type: application/json", "-d", "@-"]
+    "demo": {
+      "url": "http://127.0.0.1:3000/mcp",
+      "transport": "http"
     }
   }
 }
@@ -211,48 +231,6 @@ curl -X POST http://localhost:3000/mcp \
   }'
 ```
 
-## Creating Custom Tools
-
-To add more tools to your MCP server, modify the `src/lib.rs` file:
-
-1. Add your tool to the `ToolsList` response
-2. Handle the tool call in the `ToolsCall` match
-3. Return appropriate responses using `ToolResult::Text` or `ToolResult::Error`
-
-Example of adding a calculator tool:
-
-```rust
-Request::ToolsList => {
-    Response::ToolsList(vec![
-        Tool {
-            name: "add".to_string(),
-            description: "Add two numbers".to_string(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "a": { "type": "number" },
-                    "b": { "type": "number" }
-                },
-                "required": ["a", "b"]
-            }).to_string(),
-        }
-    ])
-}
-
-Request::ToolsCall(params) => {
-    match params.name.as_str() {
-        "add" => {
-            let args: serde_json::Value = serde_json::from_str(&params.arguments)?;
-            let a = args["a"].as_f64().unwrap_or(0.0);
-            let b = args["b"].as_f64().unwrap_or(0.0);
-            Response::ToolsCall(ToolResult::Text(
-                format!("{} + {} = {}", a, b, a + b)
-            ))
-        }
-        _ => // ... handle unknown tool
-    }
-}
-```
 
 ## Development
 
