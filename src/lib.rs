@@ -264,6 +264,85 @@ impl<F: RuntimeFactors> McpServer<F> {
                 info!("Client initialized notification received");
                 return Ok(None); // Notifications don't get responses
             }
+            "notifications/tools/list_changed" => {
+                // Client notifying that tool list has changed
+                info!("Tools list changed notification received");
+                return Ok(None); // Notifications don't get responses
+            }
+            // Method stubs for unimplemented features
+            "resources/templates/list" => {
+                info!("Resource templates list requested (not implemented)");
+                if let Some(id) = json_rpc_request.id {
+                    return Ok(Some(JsonRpcResponse::success(
+                        id,
+                        serde_json::json!({ "resourceTemplates": [] })
+                    )));
+                }
+                return Ok(None);
+            }
+            "resources/subscribe" | "resources/unsubscribe" => {
+                info!("Resource subscription requested (not implemented)");
+                if let Some(id) = json_rpc_request.id {
+                    return Ok(Some(JsonRpcResponse::success(
+                        id,
+                        serde_json::json!({})
+                    )));
+                }
+                return Ok(None);
+            }
+            "logging/setLevel" => {
+                info!("Logging level change requested (not implemented)");
+                if let Some(id) = json_rpc_request.id {
+                    return Ok(Some(JsonRpcResponse::success(
+                        id,
+                        serde_json::json!({})
+                    )));
+                }
+                return Ok(None);
+            }
+            "completion/complete" => {
+                info!("Completion requested (not implemented)");
+                if let Some(id) = json_rpc_request.id {
+                    return Ok(Some(JsonRpcResponse::success(
+                        id,
+                        serde_json::json!({
+                            "completion": {
+                                "values": [],
+                                "total": 0,
+                                "hasMore": false
+                            }
+                        })
+                    )));
+                }
+                return Ok(None);
+            }
+            "roots/list" => {
+                info!("Roots list requested (not implemented)");
+                if let Some(id) = json_rpc_request.id {
+                    return Ok(Some(JsonRpcResponse::success(
+                        id,
+                        serde_json::json!({ "roots": [] })
+                    )));
+                }
+                return Ok(None);
+            }
+            "sampling/createMessage" => {
+                info!("Sampling requested (not implemented)");
+                if let Some(id) = json_rpc_request.id {
+                    return Ok(Some(JsonRpcResponse::error(
+                        id,
+                        -32601,
+                        "Sampling not implemented",
+                        None,
+                    )));
+                }
+                return Ok(None);
+            }
+            // Handle other notifications
+            method if method.starts_with("notifications/") => {
+                info!("Received notification: {}", method);
+                return Ok(None); // All notifications return no response
+            }
             _ => {
                 warn!("Unknown method requested: {}", json_rpc_request.method);
                 if let Some(id) = json_rpc_request.id {
@@ -314,7 +393,8 @@ impl<F: RuntimeFactors> McpServer<F> {
                             }))
                         }
                         mcp::ToolResult::Json(json_str) => {
-                            let json_value: serde_json::Value = serde_json::from_str(&json_str)?;
+                            // Validate JSON but return original string
+                            let _json_value: serde_json::Value = serde_json::from_str(&json_str)?;
                             JsonRpcResponse::success(id.clone(), serde_json::json!({ 
                                 "content": [{
                                     "type": "text",
@@ -357,11 +437,27 @@ impl<F: RuntimeFactors> McpServer<F> {
                     JsonRpcResponse::success(id.clone(), serde_json::json!({ "resources": resources_json }))
                 }
                 mcp::Response::ResourcesRead(contents) => {
+                    // MCP spec expects contents to be an array
+                    let content_item = if let Some(text) = contents.text {
+                        serde_json::json!({
+                            "uri": contents.uri,
+                            "mimeType": contents.mime_type,
+                            "text": text
+                        })
+                    } else if let Some(blob) = contents.blob {
+                        serde_json::json!({
+                            "uri": contents.uri,
+                            "mimeType": contents.mime_type,
+                            "blob": base64::engine::general_purpose::STANDARD.encode(&blob)
+                        })
+                    } else {
+                        serde_json::json!({
+                            "uri": contents.uri,
+                            "mimeType": contents.mime_type
+                        })
+                    };
                     JsonRpcResponse::success(id.clone(), serde_json::json!({
-                        "uri": contents.uri,
-                        "mimeType": contents.mime_type,
-                        "text": contents.text,
-                        "blob": contents.blob.map(|b| base64::engine::general_purpose::STANDARD.encode(&b)),
+                        "contents": [content_item]
                     }))
                 }
                 mcp::Response::PromptsList(prompts) => {
