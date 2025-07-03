@@ -3,3 +3,7 @@ version = "1"
 [[template]]
 id = "mcp-rust"
 git = "."
+
+[[template]]
+id = "toolkit-pointer"
+git = "."
