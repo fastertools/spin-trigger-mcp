@@ -1,0 +1,11 @@
+[[trigger.mcp]]
+component = "{{project-name | kebab_case}}"
+route = "{{route}}"
+
+[component.{{project-name | kebab_case}}]
+source = "target/wasm32-wasip1/release/{{project-name | snake_case}}.wasm"
+# Uncomment to allow outbound HTTP requests
+# allowed_outbound_hosts = ["https://api.example.com"]
+
+[component.{{project-name | kebab_case}}.build]
+command = "cargo build --target wasm32-wasip1 --release"

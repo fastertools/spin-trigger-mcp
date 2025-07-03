@@ -507,6 +507,7 @@ impl<F: RuntimeFactors> McpServer<F> {
 /// JSON-RPC request structure
 #[derive(Debug, Deserialize)]
 struct JsonRpcRequest {
+    #[allow(dead_code)]
     jsonrpc: String,
     method: String,
     params: Option<serde_json::Value>,
