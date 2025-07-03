@@ -1,5 +1,0 @@
-package {{project-name | snake_case}}:component;
-
-world {{project-name | snake_case}}-world {
-    include spin:mcp-trigger/spin-mcp;
-}

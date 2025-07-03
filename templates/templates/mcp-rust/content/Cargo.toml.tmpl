@@ -9,7 +9,22 @@ edition = "2021"
 crate-type = [ "cdylib" ]
 
 [dependencies]
+talc = { version = "4.4.3", default-features = false, features = ["lock_api"] }
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+anyhow = "1.0"
+spin-sdk = "3.1.1"
 spin-mcp-sdk = { git = "https://github.com/fastertools/spin-trigger-mcp" }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+[profile.dev]
+opt-level = 1
+debug = true
 
 [workspace]
